@@ -22,6 +22,7 @@ import {
   Search,
   Target,
   Trash2,
+  X,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -49,8 +50,23 @@ interface Meal {
   items: MealItem[]
 }
 
+// Lista de todas as refeições disponíveis
+const availableMeals = [
+  "Café da Manhã",
+  "Lanche da Manhã", 
+  "Almoço",
+  "Lanche da Tarde",
+  "Jantar",
+  "Ceia",
+  "Pré-treino",
+  "Pós-treino",
+  "Colação",
+  "Lanche Noturno"
+]
+
 export function ManualDietCreator({ userProfile, nutritionalTargets, onBack, onSaveDiet }: ManualDietCreatorProps) {
   const [numberOfMeals, setNumberOfMeals] = useState(3)
+  const [selectedMeals, setSelectedMeals] = useState<string[]>(["Café da Manhã", "Almoço", "Jantar"])
   const [meals, setMeals] = useState<Meal[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedMealId, setSelectedMealId] = useState<string | null>(null)
@@ -69,15 +85,9 @@ export function ManualDietCreator({ userProfile, nutritionalTargets, onBack, onS
     sodium: 0,
   })
 
+  // Atualiza as refeições quando o número de refeições ou as refeições selecionadas mudam
   useEffect(() => {
-    const mealNames = {
-      3: ["Café da Manhã", "Almoço", "Jantar"],
-      4: ["Café da Manhã", "Lanche da Manhã", "Almoço", "Jantar"],
-      5: ["Café da Manhã", "Lanche da Manhã", "Almoço", "Lanche da Tarde", "Jantar"],
-      6: ["Café da Manhã", "Lanche da Manhã", "Almoço", "Lanche da Tarde", "Jantar", "Ceia"],
-    }
-
-    const newMeals = mealNames[numberOfMeals as keyof typeof mealNames].map((name, index) => ({
+    const newMeals = selectedMeals.slice(0, numberOfMeals).map((name, index) => ({
       id: `meal-${index}`,
       name,
       items: [],
@@ -85,7 +95,14 @@ export function ManualDietCreator({ userProfile, nutritionalTargets, onBack, onS
 
     setMeals(newMeals)
     setSelectedMealId(newMeals[0]?.id || null)
-  }, [numberOfMeals])
+  }, [numberOfMeals, selectedMeals])
+
+  // Atualiza o número de refeições quando as refeições selecionadas mudam
+  useEffect(() => {
+    if (selectedMeals.length !== numberOfMeals) {
+      setNumberOfMeals(selectedMeals.length)
+    }
+  }, [selectedMeals, numberOfMeals])
 
   useEffect(() => {
     const allFoods = [...foodDatabase, ...customFoods]
@@ -269,12 +286,23 @@ export function ManualDietCreator({ userProfile, nutritionalTargets, onBack, onS
     )
   }
 
+  const addMealToSelection = (mealName: string) => {
+    if (!selectedMeals.includes(mealName)) {
+      setSelectedMeals([...selectedMeals, mealName])
+    }
+  }
+
+  const removeMealFromSelection = (mealName: string) => {
+    setSelectedMeals(selectedMeals.filter(meal => meal !== mealName))
+  }
+
   const saveManualDiet = () => {
     const dietData = {
       id: `manual-diet-${Date.now()}`,
       type: "manual",
       createdAt: new Date().toISOString(),
       numberOfMeals,
+      selectedMeals,
       meals: meals.map((meal) => ({
         ...meal,
         nutrition: calculateMealNutrition(meal),
@@ -309,7 +337,7 @@ export function ManualDietCreator({ userProfile, nutritionalTargets, onBack, onS
               <p className="text-muted-foreground">Monte sua dieta personalizada</p>
             </div>
           </div>
-          <Button onClick={saveManualDiet} className="bg-green-600 hover:bg-green-700">
+          <Button onClick={saveManualDiet} className="bg-green-600 hover:bg-green-700" disabled={selectedMeals.length === 0}>
             <Save className="h-4 w-4 mr-2" />
             Salvar Dieta
           </Button>
@@ -317,19 +345,62 @@ export function ManualDietCreator({ userProfile, nutritionalTargets, onBack, onS
 
         <Card>
           <CardHeader>
-            <CardTitle>Número de Refeições</CardTitle>
+            <CardTitle>Selecionar Refeições</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Escolha quais refeições farão parte da sua rotina diária
+            </p>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-2">
-              {[3, 4, 5, 6].map((num) => (
-                <Button
-                  key={num}
-                  variant={numberOfMeals === num ? "default" : "outline"}
-                  onClick={() => setNumberOfMeals(num)}
-                >
-                  {num} refeições
-                </Button>
-              ))}
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium">Refeições Selecionadas ({selectedMeals.length})</Label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {selectedMeals.map((mealName) => (
+                    <Badge key={mealName} variant="default" className="flex items-center gap-1">
+                      {mealName}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-4 w-4 p-0 hover:bg-transparent"
+                        onClick={() => removeMealFromSelection(mealName)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+                  ))}
+                  {selectedMeals.length === 0 && (
+                    <p className="text-sm text-muted-foreground">Nenhuma refeição selecionada</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium">Refeições Disponíveis</Label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {availableMeals.map((meal) => (
+                    <Button
+                      key={meal}
+                      variant={selectedMeals.includes(meal) ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        if (selectedMeals.includes(meal)) {
+                          removeMealFromSelection(meal)
+                        } else {
+                          addMealToSelection(meal)
+                        }
+                      }}
+                      className="justify-start"
+                    >
+                      {selectedMeals.includes(meal) ? "✓ " : ""}{meal}
+                    </Button>
+                  ))}
+                </div>
+                {selectedMeals.length === 0 && (
+                  <p className="text-sm text-orange-600 mt-1">
+                    Selecione pelo menos uma refeição para continuar
+                  </p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
